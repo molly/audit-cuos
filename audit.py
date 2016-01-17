@@ -24,16 +24,15 @@ from datetime import datetime, timedelta
 
 USER_AGENT = 'AuditCUOS/0.1, run by {}, https://github.com/molly/audit-cuos'
 API = 'en.wikipedia.org/w/api.php'
+TIMESTAMP_FORMAT = '%H:%M, %d %B %Y'
 
 
 def audit():
     """Produce checkuser and oversight counts for all functionaries for the past six (full) months. Does not produce
     results for the current month to date."""
     username = input('Username: ')
-    password = getpass()
-    month_ago, six_months_ago = get_interval()
-    print(month_ago)
-    print(six_months_ago)
+    password = #getpass()
+    month_ago, six_months_ago, month_array = get_interval()
 
     site = Site('en.wikipedia.org', clients_useragent=USER_AGENT.format(username))
     site.login(username, password)
@@ -41,26 +40,42 @@ def audit():
     checkusers = site.allusers(group='checkuser')
     oversighters = site.allusers(group='oversight')
 
+    cu_dict = {}
     for cu in checkusers:
-        site.checkuserlog(user=cu.name)
+        cu_dict[cu['name']] = {}
+        checks = site.logevents('checkuserlog', user=cu['name'], limit=1)
+        for check in checks:
+            print(check)
+        break
+
+    # os_dict = {}
+    # for os in oversighters:
+    #     os_dict[os['name']] = dict.fromkeys(month_array, 0)
+    #     suppressions = site.logevents('suppress', user=os['name'], start=month_ago.isoformat(),
+    #                                   end=six_months_ago.isoformat())
+    #     for s in suppressions:
+    #         os_dict[os['name']][s['timestamp'][1]] += 1
 
 
 def get_interval():
-    """Return a tuple containing 23:59:59 for the last day of the previous month, and 00:00:00 for the first day of six
-    full months ago."""
+    """Return a tuple containing 23:59:59 for the last day of the previous month, 00:00:00 for the first day of six
+    full months ago, and an array containing the numbers of the months."""
     # Find 23:59:59 for the last day of last month
     end_of_last_month = (datetime.utcnow().replace(day=1) - timedelta(days=1))
     month_ago = datetime(end_of_last_month.year, end_of_last_month.month, end_of_last_month.day, 23, 59, 59)
 
     # Find 00:00:00 for the first day of six full months ago
-    month = (end_of_last_month.month - 6) % 12
+    month = (end_of_last_month.month - 5) % 12
     if end_of_last_month.month - 6 < 0:
         year = end_of_last_month.year - 1
     else:
         year = end_of_last_month.year
     six_months_ago = datetime(year, month, 1)
 
-    return month_ago, six_months_ago
+    months = [six_months_ago.month]
+    for i in range(5):
+        months.append((months[-1]) % 12 + 1)
+    return month_ago, six_months_ago, months
 
 
 if __name__ == '__main__':
