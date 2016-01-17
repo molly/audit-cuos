@@ -18,35 +18,43 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-from mwclient import Site
+import requests
 from getpass import getpass
 from datetime import datetime, timedelta
 
 USER_AGENT = 'AuditCUOS/0.1, run by {}, https://github.com/molly/audit-cuos'
-API = 'en.wikipedia.org/w/api.php'
+API_URL = 'https://en.wikipedia.org/w/api.php'
 TIMESTAMP_FORMAT = '%H:%M, %d %B %Y'
+
+
+def login():
+    username = input('Username: ')
+    password = getpass()
+    print("Logging in to account {} on enwiki.".format(username))
+    params = {'action': 'login', 'format': 'json'}
+    payload = {'lgname': username, 'lgpassword': password}
+    r = requests.post(API_URL, params=params, data=payload)
+    if r['content']['login']['result'] == 'NeedToken':
+
+    print(r)
 
 
 def audit():
     """Produce checkuser and oversight counts for all functionaries for the past six (full) months. Does not produce
     results for the current month to date."""
-    username = input('Username: ')
-    password = #getpass()
+    login()
     month_ago, six_months_ago, month_array = get_interval()
-
-    site = Site('en.wikipedia.org', clients_useragent=USER_AGENT.format(username))
-    site.login(username, password)
-
-    checkusers = site.allusers(group='checkuser')
-    oversighters = site.allusers(group='oversight')
-
-    cu_dict = {}
-    for cu in checkusers:
-        cu_dict[cu['name']] = {}
-        checks = site.logevents('checkuserlog', user=cu['name'], limit=1)
-        for check in checks:
-            print(check)
-        break
+    #
+    # checkusers = site.allusers(group='checkuser')
+    # oversighters = site.allusers(group='oversight')
+    #
+    # cu_dict = {}
+    # for cu in checkusers:
+    #     cu_dict[cu['name']] = {}
+    #     checks = site.logevents('checkuserlog', user=cu['name'], limit=1)
+    #     for check in checks:
+    #         print(check)
+    #     break
 
     # os_dict = {}
     # for os in oversighters:
