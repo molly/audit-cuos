@@ -110,9 +110,23 @@ def count_suppressions(params, useragent, cookies, dict_entry):
             return dict_entry, cookies
 
 
-def make_table(cu, os):
+def make_table(cu, os, month_ago, six_months_ago, month_array):
     """Create a text file with a table showing checks and suppressions."""
-    pass
+    filename = "{} to {} CUOS Statistics.txt".format(six_months_ago.strftime("%b %Y"), month_ago.strftime("%b %Y"))
+    with open(filename, 'w+') as f:
+        f.write("Checkuser:\n")
+        f.write("User\t{}\n".format("\t".join(map(str, month_array))))
+        for user, record in sorted(cu.items()):
+            f.write("{}\t{}\t{}\t{}\t{}\t{}\t{}\n".format(user, record[month_array[0]], record[month_array[1]],
+                                                          record[month_array[2]], record[month_array[3]],
+                                                          record[month_array[4]], record[month_array[5]]))
+        f.write("\n\n")
+        f.write("Oversight:\n")
+        f.write("User\t{}\n".format("\t".join(map(str, month_array))))
+        for user, record in sorted(os.items()):
+            f.write("{}\t{}\t{}\t{}\t{}\t{}\t{}\n".format(user, record[month_array[0]], record[month_array[1]],
+                                                          record[month_array[2]], record[month_array[3]],
+                                                          record[month_array[4]], record[month_array[5]]))
 
 
 def audit():
@@ -151,7 +165,7 @@ def audit():
                     'lestart': month_ago.isoformat()}
             os_dict[os['name']], cookies = count_suppressions(params, useragent, cookies, actions_dict.copy())
 
-        make_table(cu_dict, os_dict)
+        make_table(cu_dict, os_dict, month_ago, six_months_ago, month_array)
 
 
 if __name__ == '__main__':
