@@ -8,5 +8,6 @@ setup(
     license='MIT',
     author='molly',
     author_email='molly.white5@gmail.com',
-    description='Generate activity reports for functionaries on the English Wikipedia.'
+    description='Generate activity reports for functionaries on the English Wikipedia.',
+    install_requires=["requests>=2.2.1"]
 )
