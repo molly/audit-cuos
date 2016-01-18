@@ -147,6 +147,7 @@ def audit():
 
         cu_dict = {}
         for cu in checkusers:
+            print("Gathering checkuser statistics for {}".format(cu['name']))
             params ={'action': 'query', 'list': 'checkuserlog', 'format': 'json', 'culuser': cu['name'],
                      'cullimit': 500, 'culto': six_months_ago.isoformat(), 'culfrom': month_ago.isoformat()}
             cu_dict[cu['name']], cookies = count_checks(params, useragent, cookies, actions_dict.copy())
@@ -160,6 +161,7 @@ def audit():
 
         os_dict = {}
         for os in oversighters:
+            print("Gathering oversight statistics for {}".format(os['name']))
             params={'action': 'query', 'list': 'logevents', 'format': 'json', 'leprop': 'timestamp',
                     'letype': 'suppress', 'leuser': os['name'], 'lelimit': 500, 'leend': six_months_ago.isoformat(),
                     'lestart': month_ago.isoformat()}
