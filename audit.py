@@ -116,14 +116,16 @@ def make_table(cu, os, month_ago, six_months_ago, month_array):
     with open(filename, 'w+') as f:
         f.write("Checkuser:\n")
         f.write("User\t{}\n".format("\t".join(map(str, month_array))))
-        for user, record in sorted(cu.items()):
+        for user in sorted(cu.keys(), key=str.lower):
+            record = cu[user]
             f.write("{}\t{}\t{}\t{}\t{}\t{}\t{}\n".format(user, record[month_array[0]], record[month_array[1]],
                                                           record[month_array[2]], record[month_array[3]],
                                                           record[month_array[4]], record[month_array[5]]))
         f.write("\n\n")
         f.write("Oversight:\n")
         f.write("User\t{}\n".format("\t".join(map(str, month_array))))
-        for user, record in sorted(os.items()):
+        for user in sorted(os.keys(), key=str.lower):
+            record = os[user]
             f.write("{}\t{}\t{}\t{}\t{}\t{}\t{}\n".format(user, record[month_array[0]], record[month_array[1]],
                                                           record[month_array[2]], record[month_array[3]],
                                                           record[month_array[4]], record[month_array[5]]))
