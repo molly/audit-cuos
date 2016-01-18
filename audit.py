@@ -19,50 +19,38 @@
 # SOFTWARE.
 
 import requests
+import dateutil.parser
 from getpass import getpass
 from datetime import datetime, timedelta
 
 USER_AGENT = 'AuditCUOS/0.1, run by {}, https://github.com/molly/audit-cuos'
 API_URL = 'https://en.wikipedia.org/w/api.php'
-TIMESTAMP_FORMAT = '%H:%M, %d %B %Y'
 
 
 def login():
+    """Authenticate and get cookies for later requests."""
     username = input('Username: ')
     password = getpass()
     print("Logging in to account {} on enwiki.".format(username))
+    headers = {'user-agent': USER_AGENT}
     params = {'action': 'login', 'format': 'json'}
     payload = {'lgname': username, 'lgpassword': password}
-    r = requests.post(API_URL, params=params, data=payload)
-    if r['content']['login']['result'] == 'NeedToken':
-
-    print(r)
-
-
-def audit():
-    """Produce checkuser and oversight counts for all functionaries for the past six (full) months. Does not produce
-    results for the current month to date."""
-    login()
-    month_ago, six_months_ago, month_array = get_interval()
-    #
-    # checkusers = site.allusers(group='checkuser')
-    # oversighters = site.allusers(group='oversight')
-    #
-    # cu_dict = {}
-    # for cu in checkusers:
-    #     cu_dict[cu['name']] = {}
-    #     checks = site.logevents('checkuserlog', user=cu['name'], limit=1)
-    #     for check in checks:
-    #         print(check)
-    #     break
-
-    # os_dict = {}
-    # for os in oversighters:
-    #     os_dict[os['name']] = dict.fromkeys(month_array, 0)
-    #     suppressions = site.logevents('suppress', user=os['name'], start=month_ago.isoformat(),
-    #                                   end=six_months_ago.isoformat())
-    #     for s in suppressions:
-    #         os_dict[os['name']][s['timestamp'][1]] += 1
+    cookies = ''
+    while True:
+        r = requests.post(API_URL, params=params, data=payload, headers=headers, cookies=cookies)
+        resp = r.json()
+        if resp['login']['result'] == 'Success':
+            print("Successfully logged in.")
+            return r.cookies
+        elif resp['login']['result'] == 'NeedToken':
+            payload['lgtoken'] = resp['login']['token']
+            cookies = r.cookies
+        elif resp['login']['result'] == 'Throttled':
+            print('Login being throttled. Please wait and try again.')
+            return None
+        else:
+            print('Incorrect username or password.')
+            return None
 
 
 def get_interval():
@@ -85,6 +73,53 @@ def get_interval():
         months.append((months[-1]) % 12 + 1)
     return month_ago, six_months_ago, months
 
+
+def count_checks(params, useragent, cookies, dict_entry):
+    """Count how many checks are performed each month for this user."""
+    culcontinue = None
+    while True:
+        if culcontinue:
+            params.update({'culcontinue': culcontinue})
+        r = requests.get(API_URL, params=params, headers=useragent, cookies=cookies)
+        blob = r.json()
+        cookies.update(r.cookies)
+        checks = blob['query']['checkuserlog']['entries']
+        for check in checks:
+            dict_entry[dateutil.parser.parse(check['timestamp']).month] += 1
+        if 'continue' in blob:
+            culcontinue = blob['continue']['culcontinue']
+        else:
+            return dict_entry
+
+
+def audit():
+    """Produce checkuser and oversight counts for all functionaries for the past six (full) months. Does not produce
+    results for the current month to date."""
+    cookies = login()
+    if cookies:
+        useragent = {'user-agent': USER_AGENT}
+        month_ago, six_months_ago, month_array = get_interval()
+
+        r = requests.get(API_URL,
+                         params={'action': 'query', 'list': 'allusers', 'format': 'json',
+                                 'augroup': 'checkuser', 'aulimit': '500'},
+                         headers=useragent)
+        checkusers = r.json()['query']['allusers']
+        cookies.update(r.cookies)
+
+        cu_dict = {}
+        checks_dict = dict.fromkeys(month_array, 0)
+        for cu in checkusers:
+            params ={'action': 'query', 'list': 'checkuserlog', 'format': 'json', 'culuser': cu['name'],
+                     'cullimit': 500, 'culto': six_months_ago.isoformat(), 'culfrom': month_ago.isoformat()}
+            cu_dict[cu['name']] = count_checks(params, useragent, cookies, checks_dict.copy())
+
+        # r = requests.get(API_URL,
+        #                  params={'action': 'query', 'list': 'allusers', 'format': 'json',
+        #                          'augroup': 'oversight', 'aulimit': '500'},
+        #                  headers=useragent)
+        # oversighters = r.json()['query']['allusers']
+        # cookies.update(r.cookies)
 
 if __name__ == '__main__':
     audit()
