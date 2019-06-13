@@ -61,7 +61,9 @@ def get_interval():
     month_ago = datetime(end_of_last_month.year, end_of_last_month.month, end_of_last_month.day, 23, 59, 59)
 
     # Find 00:00:00 for the first day of six full months ago
-    month = (end_of_last_month.month - 5) % 12
+    month = (end_of_last_month.month - 6) % 12 + 1
+    if month == 0:
+        month = 12
     if end_of_last_month.month - 6 < 0:
         year = end_of_last_month.year - 1
     else:
@@ -144,30 +146,45 @@ def audit():
                          params={'action': 'query', 'list': 'allusers', 'format': 'json',
                                  'augroup': 'checkuser', 'aulimit': '500'},
                          headers=useragent)
-        checkusers = r.json()['query']['allusers']
+        checkusers = [x['name'] for x in r.json()['query']['allusers']]
+        print('If there are checkusers or oversighters whose userrights were removed but for whom you wish to gather'
+              ' data, please enter their usernames.')
+        raw_additional_checkusers = input('Checkusers (comma-separated): ')
+        raw_additional_oversighters = input('Oversighters (comma-separated): ')
+        additional_checkusers = []
+        if raw_additional_checkusers:
+            additional_checkusers = [x.strip() for x in raw_additional_checkusers.split(',')]
+        checkusers += additional_checkusers
+        checkusers.sort()
+
         cookies.update(r.cookies)
 
         cu_dict = {}
         for cu in checkusers:
-            print("Gathering checkuser statistics for {}".format(cu['name']))
-            params ={'action': 'query', 'list': 'checkuserlog', 'format': 'json', 'culuser': cu['name'],
+            print("Gathering checkuser statistics for {}".format(cu))
+            params ={'action': 'query', 'list': 'checkuserlog', 'format': 'json', 'culuser': cu,
                      'cullimit': 500, 'culto': six_months_ago.isoformat(), 'culfrom': month_ago.isoformat()}
-            cu_dict[cu['name']], cookies = count_checks(params, useragent, cookies, actions_dict.copy())
+            cu_dict[cu], cookies = count_checks(params, useragent, cookies, actions_dict.copy())
 
         r = requests.get(API_URL,
                          params={'action': 'query', 'list': 'allusers', 'format': 'json',
                                  'augroup': 'oversight', 'aulimit': '500'},
                          headers=useragent)
-        oversighters = r.json()['query']['allusers']
+        oversighters = [x['name'] for x in r.json()['query']['allusers']]
+        additional_oversighters = []
+        if raw_additional_oversighters:
+            additional_oversighters = [x.strip() for x in raw_additional_oversighters.split(',')]
+        oversighters += additional_oversighters
+        oversighters.sort()
         cookies.update(r.cookies)
 
         os_dict = {}
         for os in oversighters:
-            print("Gathering oversight statistics for {}".format(os['name']))
+            print("Gathering oversight statistics for {}".format(os))
             params={'action': 'query', 'list': 'logevents', 'format': 'json', 'leprop': 'timestamp',
-                    'letype': 'suppress', 'leuser': os['name'], 'lelimit': 500, 'leend': six_months_ago.isoformat(),
+                    'letype': 'suppress', 'leuser': os, 'lelimit': 500, 'leend': six_months_ago.isoformat(),
                     'lestart': month_ago.isoformat()}
-            os_dict[os['name']], cookies = count_suppressions(params, useragent, cookies, actions_dict.copy())
+            os_dict[os], cookies = count_suppressions(params, useragent, cookies, actions_dict.copy())
 
         make_table(cu_dict, os_dict, month_ago, six_months_ago, month_array)
 
