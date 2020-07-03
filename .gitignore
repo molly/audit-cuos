@@ -56,5 +56,5 @@ target/
 
 .idea/
 SECRETS.py
-venv/
 .DS_Store
+venv/
