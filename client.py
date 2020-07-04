@@ -21,7 +21,6 @@
 import dateutil.parser
 import re
 import requests
-import pickle
 from getpass import getpass
 from constants import *
 from SECRETS import *
@@ -96,65 +95,55 @@ class Client:
     def get_former_and_new_cuos(self, end_time, start_time):
         """Find any CU/OS-related userright changes in the past six months so we can
         reflect those changes."""
-
-        try:
-            with open("addl_cuos.pkl", "rb") as f:
-                [addl_cu, addl_os] = pickle.load(f)
-                return [addl_cu, addl_os]
-        except FileNotFoundError:
-            addl_cu = {}
-            addl_os = {}
-            params = {
-                "action": "query",
-                "list": "logevents",
-                "leprop": "title|timestamp|details",
-                "letype": "rights",
-                "lelimit": "max",
-                "lestart": start_time.isoformat(),
-                "leend": end_time.isoformat(),
-                "format": "json",
-            }
-            lecontinue = None
-            while True:
-                if lecontinue:
-                    params["lecontinue"] = lecontinue
-                r = self.session.get(META_API, params=params)
-                data = r.json()
-                for event in data["query"]["logevents"]:
-                    if "title" in event and event["title"].endswith("@enwiki"):
-                        # Suppressed events won't have a title, so check for that.
-                        user = event["title"][
-                            5:-7
-                        ]  # Trim User: prefix and @enwiki suffix
-                        oldgroups = event["params"]["oldgroups"]
-                        newgroups = event["params"]["newgroups"]
-                        if "checkuser" in oldgroups and "checkuser" not in newgroups:
-                            # Former CU
-                            if user not in addl_cu:
-                                addl_cu[user] = {}
-                            addl_cu[user]["end"] = event["timestamp"]
-                        if "checkuser" not in oldgroups and "checkuser" in newgroups:
-                            # New CU
-                            if user not in addl_cu:
-                                addl_cu[user] = {}
-                            addl_cu[user]["start"] = event["timestamp"]
-                        if "oversight" in oldgroups and "oversight" not in newgroups:
-                            # Former OS
-                            if user not in addl_os:
-                                addl_os[user] = {}
-                            addl_os[user]["end"] = event["timestamp"]
-                        if "oversight" not in oldgroups and "oversight" in newgroups:
-                            # New OS
-                            if user not in addl_os:
-                                addl_os[user] = {}
-                            addl_os[user]["start"] = event["timestamp"]
-                if "continue" in data and "lecontinue" in data["continue"]:
-                    lecontinue = data["continue"]["lecontinue"]
-                else:
-                    break
-            with open("addl_cuos.pkl", "wb+") as f:
-                pickle.dump([addl_cu, addl_os], f)
-            return [addl_cu, addl_os]
+        addl_cu = {}
+        addl_os = {}
+        params = {
+            "action": "query",
+            "list": "logevents",
+            "leprop": "title|timestamp|details",
+            "letype": "rights",
+            "lelimit": "max",
+            "lestart": start_time.isoformat(),
+            "leend": end_time.isoformat(),
+            "format": "json",
+        }
+        lecontinue = None
+        while True:
+            if lecontinue:
+                params["lecontinue"] = lecontinue
+            r = self.session.get(META_API, params=params)
+            data = r.json()
+            for event in data["query"]["logevents"]:
+                if "title" in event and event["title"].endswith("@enwiki"):
+                    # Suppressed events won't have a title, so check for that.
+                    user = event["title"][5:-7]  # Trim User: prefix and @enwiki suffix
+                    oldgroups = event["params"]["oldgroups"]
+                    newgroups = event["params"]["newgroups"]
+                    if "checkuser" in oldgroups and "checkuser" not in newgroups:
+                        # Former CU
+                        if user not in addl_cu:
+                            addl_cu[user] = {}
+                        addl_cu[user]["end"] = event["timestamp"]
+                    if "checkuser" not in oldgroups and "checkuser" in newgroups:
+                        # New CU
+                        if user not in addl_cu:
+                            addl_cu[user] = {}
+                        addl_cu[user]["start"] = event["timestamp"]
+                    if "oversight" in oldgroups and "oversight" not in newgroups:
+                        # Former OS
+                        if user not in addl_os:
+                            addl_os[user] = {}
+                        addl_os[user]["end"] = event["timestamp"]
+                    if "oversight" not in oldgroups and "oversight" in newgroups:
+                        # New OS
+                        if user not in addl_os:
+                            addl_os[user] = {}
+                        addl_os[user]["start"] = event["timestamp"]
+            if "continue" in data and "lecontinue" in data["continue"]:
+                lecontinue = data["continue"]["lecontinue"]
+            else:
+                break
+        return [addl_cu, addl_os]
 
     def count_checks(self, cu, month_ago, six_months_ago, months):
         params = {

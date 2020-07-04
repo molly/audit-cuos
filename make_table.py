@@ -22,26 +22,30 @@ import dateutil.parser
 from constants import COLORS
 
 
-def make_row(month, userinfo, start, end, type):
+def make_row(month, userinfo, start, end, group):
     if not start and not end:
         return "| {:,}\n".format(userinfo["actions"][month])
     elif end:
         if month < end:
             return "| {:,}\n".format(userinfo["actions"][month])
         if month == end:
-            return '| {:,}<ref name="-{}" />\n'.format(userinfo["actions"][month], type)
+            return '| {:,}<ref name="-{}" />\n'.format(
+                userinfo["actions"][month], group
+            )
         else:
             return "| \n"
     else:
         if month > start:
             return "| {:,}\n".format(userinfo["actions"][month])
         if month == start:
-            return '| {:,}<ref name="+{}" />\n'.format(userinfo["actions"][month], type)
+            return '| {:,}<ref name="+{}" />\n'.format(
+                userinfo["actions"][month], group
+            )
         else:
             return "| \n"
 
 
-def make_table(users, groups, months, type):
+def make_table(users, groups, months, group):
     rows = []
     for user in sorted(users.keys(), key=str.lower):
         userinfo = users[user]
@@ -59,7 +63,7 @@ def make_table(users, groups, months, type):
         row = '|- style="background: {}"\n'.format(color) if color else "|-\n"
         row += "| {}\n".format(user)
         for month in months:
-            row += make_row(month, userinfo, start, end, type)
+            row += make_row(month, userinfo, start, end, group)
         rows.append(row)
     rows.append(gather_stats(users, months))
     return "".join(rows)
