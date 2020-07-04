@@ -13,6 +13,8 @@ English Wikipedia to successfully run this script. You will also need to generat
 to log in when prompted. Trying to log in with your main account username and password
 will not work.
 
+This script will not make any edits on your behalf. 
+
 1. Install with [pip](https://pypi.org/project/pip/): `pip install audit-cuos`
 2. When prompted, enter your bot username and password. Make sure you use the bot
     username (e.g., "GorillaWarfare@cuos") and not your main username
