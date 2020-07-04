@@ -18,8 +18,6 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-import copy
-import pickle
 from client import Client
 from datetime import datetime, timedelta
 from make_table import make_table, write_table
