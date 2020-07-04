@@ -22,6 +22,7 @@ import copy
 import pickle
 from client import Client
 from datetime import datetime, timedelta
+from make_table import make_table, write_table
 
 
 def get_interval():
@@ -112,7 +113,15 @@ def run():
         with open("data.pkl", "wb+") as f:
             pickle.dump(users_dict, f)
 
-    make_table(users_dict)
+    # Get members of groups that are exempt from activity requirements so we can mark
+    # that in the table
+    groups = {"arbs": client.get_arbitrators(), "ombuds": client.get_ombuds()}
+
+    # Create the wikitext table from the data we've gathered
+    cu_table = make_table(users_dict["cu"], groups, months, "cu")
+    os_table = make_table(users_dict["os"], groups, months, "os")
+
+    write_table(cu_table, os_table)
 
 
 if __name__ == "__main__":

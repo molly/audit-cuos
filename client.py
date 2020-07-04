@@ -19,6 +19,7 @@
 # SOFTWARE.
 
 import dateutil.parser
+import re
 import requests
 import pickle
 from getpass import getpass
@@ -29,7 +30,7 @@ from SECRETS import *
 def prompt():
     print(
         "Please log in with an English Wikipedia bot password "
-        "(https://en.wikipedia.org/wiki/Special:BotPasswords).\nAttempting to log in"
+        "(https://en.wikipedia.org/wiki/Special:BotPasswords).\nAttempting to log in "
         "with your primary account name and username will not work."
     )
     return s_username, s_password
@@ -208,3 +209,27 @@ class Client:
             else:
                 break
         return actions
+
+    def get_arbitrators(self):
+        params = {
+            "action": "parse",
+            "format": "json",
+            "page": "Wikipedia:Arbitration Committee/Members",
+            "prop": "wikitext",
+            "formatversion": "2",
+        }
+        r = self.session.get(ENWIKI_API, params=params)
+        data = r.json()
+        text = data["parse"]["wikitext"]
+        return re.findall(r"\{\{user\|(.*?)\}\}", text)
+
+    def get_ombuds(self):
+        params = {
+            "action": "query",
+            "format": "json",
+            "list": "globalallusers",
+            "agugroup": "ombuds",
+        }
+        r = self.session.get(META_API, params=params)
+        data = r.json()
+        return [u["name"] for u in data["query"]["globalallusers"]]
