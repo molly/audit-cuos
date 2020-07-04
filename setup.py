@@ -5,7 +5,7 @@ with open("README.md", "r") as f:
 
 setuptools.setup(
     name="audit-cuos",
-    version="0.2.post1",
+    version="0.2.post2",
     packages=setuptools.find_packages(),
     url="https://github.com/molly/audit-cuos",
     license="MIT",

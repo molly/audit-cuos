@@ -29,7 +29,7 @@ def prompt():
     print(
         "Please log in with an English Wikipedia bot password "
         "(https://en.wikipedia.org/wiki/Special:BotPasswords).\nAttempting to log in "
-        "with your primary account name and username will not work."
+        "with your primary account name and password will not work."
     )
     username = input("Username: ")
     password = getpass()
