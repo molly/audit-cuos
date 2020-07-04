@@ -23,7 +23,6 @@ import re
 import requests
 from getpass import getpass
 from constants import *
-from SECRETS import *
 
 
 def prompt():
@@ -32,7 +31,6 @@ def prompt():
         "(https://en.wikipedia.org/wiki/Special:BotPasswords).\nAttempting to log in "
         "with your primary account name and username will not work."
     )
-    return s_username, s_password
     username = input("Username: ")
     password = getpass()
     return username, password
