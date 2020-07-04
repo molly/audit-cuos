@@ -19,6 +19,7 @@
 # SOFTWARE.
 
 import copy
+import pickle
 from client import Client
 from datetime import datetime, timedelta
 
@@ -54,6 +55,22 @@ def get_interval():
     return month_ago, six_months_ago, months
 
 
+def get_current_cuos(client):
+    try:
+        with open("current_cuos.pkl", "rb") as f:
+            users_dict = pickle.load(f)
+            return users_dict
+    except FileNotFoundError:
+
+        users_dict = {
+            "cu": {cu: {} for cu in client.get_checkusers()},
+            "os": {os: {} for os in client.get_oversighters()},
+        }
+    with open("current_cuos.pkl", "wb+") as f:
+        pickle.dump(users_dict, f)
+    return users_dict
+
+
 def run():
     """Run the audit."""
     client = Client()
@@ -61,19 +78,41 @@ def run():
     if not logged_in:
         return
 
-    month_ago, six_months_ago, months = get_interval()
-    empty_user_dict = {
-        "start_month": None,
-        "end_month": None,
-        "actions": dict.fromkeys(months, 0),
-    }
-    # users_dict = {
-    #     "cu": {cu: copy.deepcopy(empty_user_dict) for cu in client.get_checkusers()},
-    #     "os": {os: copy.deepcopy(empty_user_dict) for os in client.get_oversighters()},
-    # }
+    interval_data = get_interval()
+    month_ago, six_months_ago, months = interval_data
+
+    # Gather lists of current, former, and new CU/OS
+    users_dict = get_current_cuos(client)
     [addl_cu_info, addl_os_info] = client.get_former_and_new_cuos(
         six_months_ago, month_ago
     )
+
+    # Merge data about current, former, and new CU/OS
+    for cu, info in addl_cu_info.items():
+        if cu not in users_dict["cu"]:
+            users_dict["cu"][cu] = {}
+        users_dict["cu"][cu].update(info)
+    for os, info in addl_os_info.items():
+        if os not in users_dict["os"]:
+            users_dict["os"][os] = {}
+        users_dict["os"][os].update(info)
+
+    # Gather statistics
+    try:
+        with open("data.pkl", "rb") as f:
+            users_dict = pickle.load(f)
+    except FileNotFoundError:
+        for cu in users_dict["cu"]:
+            actions = client.count_checks(cu, *interval_data)
+            users_dict["cu"][cu]["actions"] = actions
+        for os in users_dict["os"]:
+            actions = client.count_suppressions(os, *interval_data)
+            users_dict["os"][os]["actions"] = actions
+
+        with open("data.pkl", "wb+") as f:
+            pickle.dump(users_dict, f)
+
+    make_table(users_dict)
 
 
 if __name__ == "__main__":

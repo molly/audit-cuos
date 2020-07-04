@@ -18,7 +18,9 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
+import dateutil.parser
 import requests
+import pickle
 from getpass import getpass
 from constants import *
 from SECRETS import *
@@ -44,33 +46,6 @@ class Client:
         self.session = requests.Session()
         self.session.headers.update({"User-Agent": USER_AGENT.format(self.username)})
 
-    def login(self):
-        # Fetch login token
-        token_params = {
-            "action": "query",
-            "meta": "tokens",
-            "type": "login",
-            "format": "json",
-        }
-        token_r = self.session.get(url=ENWIKI_API, params=token_params)
-        token_data = token_r.json()
-
-        # Log in with bot username, password, and token
-        params = {
-            "action": "login",
-            "lgname": self.username,
-            "lgpassword": self.password,
-            "lgtoken": token_data["query"]["tokens"]["logintoken"],
-            "format": "json",
-        }
-        login_r = self.session.post(url=ENWIKI_API, data=params)
-        login_data = login_r.json()
-        if login_data["login"]["result"] != "Success":
-            print(login_data["login"]["result"])
-            print(login_data["login"]["reason"])
-            return False
-        return True
-
     def _get_userlist_by_userright(self, userright):
         """Get a list of usernames with the specified userright."""
         params = {
@@ -84,6 +59,33 @@ class Client:
         data = r.json()
         return [u["name"] for u in data["query"]["allusers"]]
 
+    def login(self):
+        # Fetch login token
+        token_params = {
+            "action": "query",
+            "meta": "tokens",
+            "type": "login",
+            "format": "json",
+        }
+        token_r = self.session.get(ENWIKI_API, params=token_params)
+        token_data = token_r.json()
+
+        # Log in with bot username, password, and token
+        params = {
+            "action": "login",
+            "lgname": self.username,
+            "lgpassword": self.password,
+            "lgtoken": token_data["query"]["tokens"]["logintoken"],
+            "format": "json",
+        }
+        login_r = self.session.post(ENWIKI_API, data=params)
+        login_data = login_r.json()
+        if login_data["login"]["result"] != "Success":
+            print(login_data["login"]["result"])
+            print(login_data["login"]["reason"])
+            return False
+        return True
+
     def get_checkusers(self):
         return self._get_userlist_by_userright("checkuser")
 
@@ -93,53 +95,116 @@ class Client:
     def get_former_and_new_cuos(self, end_time, start_time):
         """Find any CU/OS-related userright changes in the past six months so we can
         reflect those changes."""
-        addl_cu = {}
-        addl_os = {}
+
+        try:
+            with open("addl_cuos.pkl", "rb") as f:
+                [addl_cu, addl_os] = pickle.load(f)
+                return [addl_cu, addl_os]
+        except FileNotFoundError:
+            addl_cu = {}
+            addl_os = {}
+            params = {
+                "action": "query",
+                "list": "logevents",
+                "leprop": "title|timestamp|details",
+                "letype": "rights",
+                "lelimit": "max",
+                "lestart": start_time.isoformat(),
+                "leend": end_time.isoformat(),
+                "format": "json",
+            }
+            lecontinue = None
+            while True:
+                if lecontinue:
+                    params["lecontinue"] = lecontinue
+                r = self.session.get(META_API, params=params)
+                data = r.json()
+                for event in data["query"]["logevents"]:
+                    if "title" in event and event["title"].endswith("@enwiki"):
+                        # Suppressed events won't have a title, so check for that.
+                        user = event["title"][
+                            5:-7
+                        ]  # Trim User: prefix and @enwiki suffix
+                        oldgroups = event["params"]["oldgroups"]
+                        newgroups = event["params"]["newgroups"]
+                        if "checkuser" in oldgroups and "checkuser" not in newgroups:
+                            # Former CU
+                            if user not in addl_cu:
+                                addl_cu[user] = {}
+                            addl_cu[user]["end"] = event["timestamp"]
+                        if "checkuser" not in oldgroups and "checkuser" in newgroups:
+                            # New CU
+                            if user not in addl_cu:
+                                addl_cu[user] = {}
+                            addl_cu[user]["start"] = event["timestamp"]
+                        if "oversight" in oldgroups and "oversight" not in newgroups:
+                            # Former OS
+                            if user not in addl_os:
+                                addl_os[user] = {}
+                            addl_os[user]["end"] = event["timestamp"]
+                        if "oversight" not in oldgroups and "oversight" in newgroups:
+                            # New OS
+                            if user not in addl_os:
+                                addl_os[user] = {}
+                            addl_os[user]["start"] = event["timestamp"]
+                if "continue" in data and "lecontinue" in data["continue"]:
+                    lecontinue = data["continue"]["lecontinue"]
+                else:
+                    break
+            with open("addl_cuos.pkl", "wb+") as f:
+                pickle.dump([addl_cu, addl_os], f)
+            return [addl_cu, addl_os]
+
+    def count_checks(self, cu, month_ago, six_months_ago, months):
+        params = {
+            "action": "query",
+            "list": "checkuserlog",
+            "culuser": cu,
+            "cullimit": 500,
+            "culto": six_months_ago.isoformat(),
+            "culfrom": month_ago.isoformat(),
+            "format": "json",
+        }
+        actions = {month: 0 for month in months}
+        culcontinue = None
+        print("Counting checks for {}".format(cu))
+        while True:
+            if culcontinue:
+                params["culcontinue"] = culcontinue
+            r = self.session.get(ENWIKI_API, params=params)
+            data = r.json()
+            for check in data["query"]["checkuserlog"]["entries"]:
+                actions[dateutil.parser.parse(check["timestamp"]).month] += 1
+            if "continue" in data and "culcontinue" in data["continue"]:
+                culcontinue = data["continue"]["culcontinue"]
+            else:
+                break
+        return actions
+
+    def count_suppressions(self, os, month_ago, six_months_ago, months):
         params = {
             "action": "query",
             "list": "logevents",
-            "leprop": "title|timestamp|details",
-            "letype": "rights",
-            "lelimit": "max",
-            "lestart": start_time.isoformat(),
-            "leend": end_time.isoformat(),
+            "leprop": "timestamp",
+            "letype": "suppress",
+            "leuser": os,
+            "lelimit": 500,
+            "leend": six_months_ago.isoformat(),
+            "lestart": month_ago.isoformat(),
             "format": "json",
         }
+        actions = {month: 0 for month in months}
         lecontinue = None
+        print("Counting suppressions for {}".format(os))
         while True:
             if lecontinue:
                 params["lecontinue"] = lecontinue
-            r = self.session.get(META_API, params=params)
+            r = self.session.get(ENWIKI_API, params=params)
             data = r.json()
-            for event in data["query"]["logevents"]:
-                if "title" in event and event["title"].endswith("@enwiki"):
-                    # Suppressed events won't have a title, so check for that.
-                    user = event["title"][5:-7]  # Trim User: prefix and @enwiki suffix
-                    oldgroups = event["params"]["oldgroups"]
-                    newgroups = event["params"]["newgroups"]
-                    if "checkuser" in oldgroups and "checkuser" not in newgroups:
-                        # Former CU
-                        if user not in addl_cu:
-                            addl_cu[user] = {}
-                        addl_cu[user]["end"] = event["timestamp"]
-                    if "checkuser" not in oldgroups and "checkuser" in newgroups:
-                        # New CU
-                        if user not in addl_cu:
-                            addl_cu[user] = {}
-                        addl_cu[user]["start"] = event["timestamp"]
-                    if "oversight" in oldgroups and "oversight" not in newgroups:
-                        # Former OS
-                        if user not in addl_os:
-                            addl_os[user] = {}
-                        addl_os[user]["end"] = event["timestamp"]
-                    if "oversight" not in oldgroups and "oversight" in newgroups:
-                        # New OS
-                        if user not in addl_os:
-                            addl_os[user] = {}
-                        addl_os[user]["start"] = event["timestamp"]
+            for supp in data["query"]["logevents"]:
+                actions[dateutil.parser.parse(supp["timestamp"]).month] += 1
             if "continue" in data and "lecontinue" in data["continue"]:
                 lecontinue = data["continue"]["lecontinue"]
             else:
                 break
-
-        return [addl_cu, addl_os]
+        return actions

@@ -58,3 +58,4 @@ target/
 SECRETS.py
 .DS_Store
 venv/
+*.pkl
