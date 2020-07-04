@@ -18,8 +18,63 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
+import copy
 from client import Client
+from datetime import datetime, timedelta
+
+
+def get_interval():
+    """Return a tuple containing 23:59:59 for the last day of the previous month,
+    00:00:00 for the first day of six full months ago, and an array containing the
+    numbers of the months."""
+    # Find 23:59:59 for the last day of last month
+    end_of_last_month = datetime.utcnow().replace(day=1) - timedelta(days=1)
+    month_ago = datetime(
+        end_of_last_month.year,
+        end_of_last_month.month,
+        end_of_last_month.day,
+        23,
+        59,
+        59,
+    )
+
+    # Find 00:00:00 for the first day of six full months ago
+    month = (end_of_last_month.month - 6) % 12 + 1
+    if month == 0:
+        month = 12
+    if end_of_last_month.month - 6 < 0:
+        year = end_of_last_month.year - 1
+    else:
+        year = end_of_last_month.year
+    six_months_ago = datetime(year, month, 1)
+
+    months = [six_months_ago.month]
+    for i in range(5):
+        months.append((months[-1]) % 12 + 1)
+    return month_ago, six_months_ago, months
+
+
+def run():
+    """Run the audit."""
+    client = Client()
+    logged_in = client.login()
+    if not logged_in:
+        return
+
+    month_ago, six_months_ago, months = get_interval()
+    empty_user_dict = {
+        "start_month": None,
+        "end_month": None,
+        "actions": dict.fromkeys(months, 0),
+    }
+    # users_dict = {
+    #     "cu": {cu: copy.deepcopy(empty_user_dict) for cu in client.get_checkusers()},
+    #     "os": {os: copy.deepcopy(empty_user_dict) for os in client.get_oversighters()},
+    # }
+    [addl_cu_info, addl_os_info] = client.get_former_and_new_cuos(
+        six_months_ago, month_ago
+    )
+
 
 if __name__ == "__main__":
-    client = Client()
-    client.login()
+    run()
