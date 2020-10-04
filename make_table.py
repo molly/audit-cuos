@@ -55,7 +55,7 @@ def make_row(month, userinfo, group):
     return row
 
 
-def make_table(users: object, groups: object, months: object, group: object) -> object:
+def make_table(users, groups, months, group):
     rows = []
     for user in sorted(users.keys(), key=str.lower):
         userinfo = users[user]
