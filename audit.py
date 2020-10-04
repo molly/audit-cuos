@@ -77,11 +77,11 @@ def run():
     for cu, info in addl_cu_info.items():
         if cu not in users_dict["cu"]:
             users_dict["cu"][cu] = {}
-        users_dict["cu"][cu].update(info)
+        users_dict["cu"][cu].update({"active": info})
     for os, info in addl_os_info.items():
         if os not in users_dict["os"]:
             users_dict["os"][os] = {}
-        users_dict["os"][os].update(info)
+        users_dict["os"][os].update({"active": info})
 
     # Gather statistics
     for cu in users_dict["cu"]:

@@ -22,6 +22,7 @@ import dateutil.parser
 import re
 import requests
 from getpass import getpass
+from dateutil.relativedelta import relativedelta
 from constants import *
 
 
@@ -90,7 +91,40 @@ class Client:
     def get_oversighters(self):
         return self._get_userlist_by_userright("oversight")
 
-    def get_former_and_new_cuos(self, end_time, start_time):
+    def calculate_ranges(self, events, start_time, end_time):
+        active_periods = []
+        for ind, event in enumerate(events):
+            if event["event"] == "remove":
+                if ind == 0:
+                    active_periods.append(
+                        [
+                            start_time + relativedelta(days=-1),
+                            dateutil.parser.parse(event["timestamp"]),
+                        ]
+                    )
+                else:
+                    active_periods.append(
+                        [
+                            events[ind - 1]["timestamp"],
+                            dateutil.parser.parse(event["timestamp"]),
+                        ]
+                    )
+            else:
+                if ind == len(events) - 1:
+                    # The last event was an "add" event
+                    active_periods.append(
+                        [
+                            dateutil.parser.parse(event["timestamp"]),
+                            end_time + relativedelta(days=+1),
+                        ]
+                    )
+                else:
+                    # This means there was an add event but also a remove event after it,
+                    # so it will be handled by the "remove" logic
+                    pass
+        return active_periods
+
+    def get_former_and_new_cuos(self, start_time, end_time):
         """Find any CU/OS-related userright changes in the past six months so we can
         reflect those changes."""
         addl_cu = {}
@@ -101,8 +135,8 @@ class Client:
             "leprop": "title|timestamp|details",
             "letype": "rights",
             "lelimit": "max",
-            "lestart": start_time.isoformat(),
-            "leend": end_time.isoformat(),
+            "lestart": end_time.isoformat(),
+            "leend": start_time.isoformat(),
             "format": "json",
         }
         lecontinue = None
@@ -118,29 +152,42 @@ class Client:
                     oldgroups = event["params"]["oldgroups"]
                     newgroups = event["params"]["newgroups"]
                     if "checkuser" in oldgroups and "checkuser" not in newgroups:
-                        # Former CU
+                        # CU removed
                         if user not in addl_cu:
-                            addl_cu[user] = {}
-                        addl_cu[user]["end"] = event["timestamp"]
+                            addl_cu[user] = []
+                        addl_cu[user].insert(
+                            0, {"timestamp": event["timestamp"], "event": "remove"}
+                        )
                     if "checkuser" not in oldgroups and "checkuser" in newgroups:
-                        # New CU
+                        # CU granted
                         if user not in addl_cu:
-                            addl_cu[user] = {}
-                        addl_cu[user]["start"] = event["timestamp"]
+                            addl_cu[user] = []
+                        addl_cu[user].insert(
+                            0, {"timestamp": event["timestamp"], "event": "add"}
+                        )
                     if "oversight" in oldgroups and "oversight" not in newgroups:
-                        # Former OS
+                        # OS removed
                         if user not in addl_os:
-                            addl_os[user] = {}
-                        addl_os[user]["end"] = event["timestamp"]
+                            addl_os[user] = []
+                        addl_os[user].insert(
+                            0, {"timestamp": event["timestamp"], "event": "remove"}
+                        )
                     if "oversight" not in oldgroups and "oversight" in newgroups:
-                        # New OS
+                        # OS granted
                         if user not in addl_os:
-                            addl_os[user] = {}
-                        addl_os[user]["start"] = event["timestamp"]
+                            addl_os[user] = []
+                        addl_os[user].insert(
+                            0, {"timestamp": event["timestamp"], "event": "add"}
+                        )
             if "continue" in data and "lecontinue" in data["continue"]:
                 lecontinue = data["continue"]["lecontinue"]
             else:
                 break
+
+        for user in addl_cu.keys():
+            addl_cu[user] = self.calculate_ranges(addl_cu[user], start_time, end_time)
+        for user in addl_os.keys():
+            addl_os[user] = self.calculate_ranges(addl_os[user], start_time, end_time)
         return [addl_cu, addl_os]
 
     def count_checks(self, cu, month_ago, six_months_ago, months):

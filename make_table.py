@@ -19,43 +19,47 @@
 # SOFTWARE.
 
 import dateutil.parser
+from dateutil.relativedelta import relativedelta
+from datetime import datetime
 from constants import COLORS
 
 
-def make_row(month, userinfo, start, end, group):
-    if not start and not end:
-        return "| {:,}\n".format(userinfo["actions"][month])
-    elif end:
-        if month < end:
-            return "| {:,}\n".format(userinfo["actions"][month])
-        if month == end:
-            return '| {:,}<ref name="-{}" />\n'.format(
-                userinfo["actions"][month], group
-            )
-        else:
-            return "| \n"
+def make_row(month, userinfo, group):
+    row = "| "
+    active_this_month = True if "active" not in userinfo else False
+    right_removed = False
+    right_added = False
+    if "active" in userinfo:
+        for r in userinfo["active"]:
+            if r[0].month <= month <= r[1].month:
+                # User was active at some point this month
+                active_this_month = True
+            if month == r[0].month:
+                # Right was added this month
+                right_added = True
+            if month == r[1].month:
+                # Right was removed this month
+                right_removed = True
+
+    if userinfo["actions"][month] == 0 and not active_this_month:
+        row += "\n"
     else:
-        if month > start:
-            return "| {:,}\n".format(userinfo["actions"][month])
-        if month == start:
-            return '| {:,}<ref name="+{}" />\n'.format(
-                userinfo["actions"][month], group
-            )
-        else:
-            return "| \n"
+        # User was active this month
+        row += "{:,}".format(userinfo["actions"][month])
+        if right_added:
+            row += '<ref name="+{}" />\n'.format(group)
+        if right_removed:
+            row += '<ref name="-{}" />\n'.format(group)
+        if not right_added and not right_removed:
+            row += "\n"
+    return row
 
 
-def make_table(users, groups, months, group):
+def make_table(users: object, groups: object, months: object, group: object) -> object:
     rows = []
     for user in sorted(users.keys(), key=str.lower):
         userinfo = users[user]
-        start = None
-        end = None
         color = None
-        if "start" in userinfo:
-            start = dateutil.parser.parse(userinfo["start"]).month
-        if "end" in userinfo:
-            end = dateutil.parser.parse(userinfo["end"]).month
         if user in groups["arbs"]:
             color = COLORS["arb"]
         elif user in groups["ombuds"]:
@@ -63,7 +67,7 @@ def make_table(users, groups, months, group):
         row = '|- style="background: {}"\n'.format(color) if color else "|-\n"
         row += "| {}\n".format(user)
         for month in months:
-            row += make_row(month, userinfo, start, end, group)
+            row += make_row(month, userinfo, group)
         rows.append(row)
     rows.append(gather_stats(users, months))
     return "".join(rows)
