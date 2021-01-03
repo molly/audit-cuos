@@ -21,9 +21,12 @@
 import dateutil.parser
 import re
 import requests
+import pytz
 from getpass import getpass
 from dateutil.relativedelta import relativedelta
 from constants import *
+
+utc = pytz.UTC
 
 
 def prompt():
@@ -98,14 +101,14 @@ class Client:
                 if ind == 0:
                     active_periods.append(
                         [
-                            start_time + relativedelta(days=-1),
+                            (start_time + relativedelta(days=-1)).replace(tzinfo=utc),
                             dateutil.parser.parse(event["timestamp"]),
                         ]
                     )
                 else:
                     active_periods.append(
                         [
-                            events[ind - 1]["timestamp"],
+                            dateutil.parser.parse(events[ind - 1]["timestamp"]),
                             dateutil.parser.parse(event["timestamp"]),
                         ]
                     )
@@ -115,7 +118,7 @@ class Client:
                     active_periods.append(
                         [
                             dateutil.parser.parse(event["timestamp"]),
-                            end_time + relativedelta(days=+1),
+                            (end_time + relativedelta(days=+1)).replace(tzinfo=utc),
                         ]
                     )
                 else:
@@ -200,7 +203,7 @@ class Client:
             "culfrom": month_ago.isoformat(),
             "format": "json",
         }
-        actions = {month: 0 for month in months}
+        actions = {month.month: 0 for month in months}
         culcontinue = None
         print("Counting checks for {}".format(cu))
         while True:
@@ -228,7 +231,7 @@ class Client:
             "lestart": month_ago.isoformat(),
             "format": "json",
         }
-        actions = {month: 0 for month in months}
+        actions = {month.month: 0 for month in months}
         lecontinue = None
         print("Counting suppressions for {}".format(os))
         while True:

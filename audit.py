@@ -20,7 +20,11 @@
 
 from client import Client
 from datetime import datetime, timedelta
+from dateutil.relativedelta import *
 from make_table import make_table, write_table
+import pytz
+
+utc = pytz.UTC
 
 
 def get_interval():
@@ -28,30 +32,20 @@ def get_interval():
     00:00:00 for the first day of six full months ago, and an array containing the
     numbers of the months."""
     # Find 23:59:59 for the last day of last month
-    end_of_last_month = datetime.utcnow().replace(day=1) - timedelta(days=1)
-    month_ago = datetime(
-        end_of_last_month.year,
-        end_of_last_month.month,
-        end_of_last_month.day,
-        23,
-        59,
-        59,
-    )
+    end_of_last_month = datetime.now(tz=utc).replace(
+        day=1, hour=0, minute=0, second=0, microsecond=0
+    ) - timedelta(microseconds=1)
 
     # Find 00:00:00 for the first day of six full months ago
-    month = (end_of_last_month.month - 6) % 12 + 1
-    if month == 0:
-        month = 12
-    if end_of_last_month.month - 6 < 0:
-        year = end_of_last_month.year - 1
-    else:
-        year = end_of_last_month.year
-    six_months_ago = datetime(year, month, 1)
+    month_ago = datetime(end_of_last_month.year, end_of_last_month.month, 1)
 
-    months = [six_months_ago.month]
+    six_months_ago = month_ago - relativedelta(months=5)
+
+    months = [six_months_ago]
     for i in range(5):
-        months.append((months[-1]) % 12 + 1)
-    return month_ago, six_months_ago, months
+        months.append(six_months_ago + relativedelta(months=i + 1))
+
+    return end_of_last_month, six_months_ago, months
 
 
 def run():
